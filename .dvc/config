@@ -1,0 +1,4 @@
+[core]
+    remote = myremote
+['remote "myremote"']
+    url = https://dagshub.com/Shakshi123pal/AI-Powered-YouTube-Comment-Analyzer-Chrome-Plugin.dvc
