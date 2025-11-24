@@ -1,0 +1,22 @@
+schema: '2.0'
+stages:
+  data_ingestion:
+    cmd: python src/data/data_ingestion.py
+    deps:
+    - path: data/raw/all_comments.csv
+      hash: md5
+      md5: 76d42e534411e1f6f7e72ebd3f873a16
+      size: 4349628
+    - path: src/data/data_ingestion.py
+      hash: md5
+      md5: 8ca2fc41a4cfb8fedf17bc952071bace
+      size: 3737
+    params:
+      params.yaml:
+        data_ingestion.test_size: 0.2
+    outs:
+    - path: data/processed
+      hash: md5
+      md5: 3a8a315d5a1bd4afe724e4ad0d49affb.dir
+      size: 4050216
+      nfiles: 2
