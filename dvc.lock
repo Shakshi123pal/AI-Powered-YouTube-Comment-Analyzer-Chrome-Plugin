@@ -20,3 +20,84 @@ stages:
       md5: 3a8a315d5a1bd4afe724e4ad0d49affb.dir
       size: 4050216
       nfiles: 2
+  data_preprocessing:
+    cmd: python src/data/data_preprocessing.py
+    deps:
+    - path: data/processed/test.csv
+      hash: md5
+      md5: 9aee41f1d2dc1fa7b0dd9c8a4d0c4f36
+      size: 812150
+    - path: data/processed/train.csv
+      hash: md5
+      md5: 1e77937239ab5610cfdf005b66091240
+      size: 3238066
+    - path: params.yaml
+      hash: md5
+      md5: 88356a83d2c4373dae8802edd3ea79ff
+      size: 291
+    - path: src/data/data_preprocessing.py
+      hash: md5
+      md5: 78e2d52def8d740d471383a3c1448ccf
+      size: 4969
+    outs:
+    - path: data/interim/test_processed.csv
+      hash: md5
+      md5: bdc3788fa400b5525880ef846355c1da
+      size: 722480
+    - path: data/interim/train_processed.csv
+      hash: md5
+      md5: 2b19d4d2de59f97176bda83af05944c4
+      size: 2860691
+  model_building:
+    cmd: python src/model/model_building.py
+    deps:
+    - path: data/interim/train_processed.csv
+      hash: md5
+      md5: 2b19d4d2de59f97176bda83af05944c4
+      size: 2860691
+    - path: params.yaml
+      hash: md5
+      md5: 88356a83d2c4373dae8802edd3ea79ff
+      size: 291
+    - path: src/model/model_building.py
+      hash: md5
+      md5: 5cb851e9470f84a66cc443027dfed94c
+      size: 3856
+    outs:
+    - path: svm_model.pkl
+      hash: md5
+      md5: 128e4b4b492f766134b7ea2f3b499ca7
+      size: 1391173
+    - path: tfidf_vectorizer.pkl
+      hash: md5
+      md5: ab8bbcc7d5ad6e73a9320cac72a234e1
+      size: 191169
+  model_evaluation:
+    cmd: python src/model/model_evaluation.py
+    deps:
+    - path: data/interim/test_processed.csv
+      hash: md5
+      md5: bdc3788fa400b5525880ef846355c1da
+      size: 722480
+    - path: params.yaml
+      hash: md5
+      md5: 88356a83d2c4373dae8802edd3ea79ff
+      size: 291
+    - path: src/model/model_evaluation.py
+      hash: md5
+      md5: d52f88577e1e0cad574045c8a9cdd8fb
+      size: 3452
+    - path: svm_model.pkl
+      hash: md5
+      md5: 128e4b4b492f766134b7ea2f3b499ca7
+      size: 1391173
+    - path: tfidf_vectorizer.pkl
+      hash: md5
+      md5: ab8bbcc7d5ad6e73a9320cac72a234e1
+      size: 191169
+    outs:
+    - path: reports
+      hash: md5
+      md5: 8753a883498638a46c0264c54fd98cf7.dir
+      size: 544
+      nfiles: 3

@@ -1,0 +1,32 @@
+stages:
+  data_preprocessing:
+    cmd: python src/data/data_preprocessing.py
+    deps:
+      - src/data/data_preprocessing.py
+      - data/processed/train.csv
+      - data/processed/test.csv
+      - params.yaml
+    outs:
+      - data/interim/train_processed.csv
+      - data/interim/test_processed.csv
+
+  model_building:
+    cmd: python src/model/model_building.py
+    deps:
+      - src/model/model_building.py
+      - data/interim/train_processed.csv
+      - params.yaml
+    outs:
+      - svm_model.pkl
+      - tfidf_vectorizer.pkl
+
+  model_evaluation:
+    cmd: python src/model/model_evaluation.py
+    deps:
+      - src/model/model_evaluation.py
+      - data/interim/test_processed.csv
+      - svm_model.pkl
+      - tfidf_vectorizer.pkl
+      - params.yaml
+    outs:
+      - reports

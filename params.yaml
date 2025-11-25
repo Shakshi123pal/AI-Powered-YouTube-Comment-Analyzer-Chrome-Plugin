@@ -1,0 +1,17 @@
+data_ingestion:
+  test_size: 0.2
+
+data_preprocessing:
+  lowercase: true
+  remove_stopwords: true
+  apply_lemmatization: true
+  remove_punctuation: true
+
+model_building:
+  max_features: 5000
+  ngram_range: [1, 3]
+
+model_svm:
+  C: 6.128041568136548
+  kernel: rbf
+  gamma: scale

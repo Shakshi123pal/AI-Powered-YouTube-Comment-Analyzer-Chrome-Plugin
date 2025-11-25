@@ -13,7 +13,6 @@ logger.setLevel(logging.DEBUG)
 
 console_handler = logging.StreamHandler()
 console_handler.setLevel(logging.DEBUG)
-
 file_handler = logging.FileHandler("preprocessing_errors.log")
 file_handler.setLevel(logging.ERROR)
 
@@ -28,69 +27,106 @@ logger.addHandler(file_handler)
 nltk.download("wordnet")
 nltk.download("stopwords")
 
-# Load parameters from params.yaml
+
 def load_params():
+    """Load parameters from params.yaml."""
     try:
         params_path = os.path.join(
             os.path.dirname(os.path.abspath(__file__)), "../../params.yaml"
         )
         with open(params_path, "r") as f:
             params = yaml.safe_load(f)
-        logger.debug("Loaded params from params.yaml")
         return params
     except Exception as e:
         logger.error(f"Error loading params.yaml: {e}")
         raise
 
+
+def remove_url(text):
+    return re.sub(r"http\S+|www\S+|https\S+", "", text)
+
+
+def create_sentiment(comment):
+    """Rule-based sentiment label (0=neutral, 1=positive, 2=negative)."""
+    comment = comment.lower()
+
+    positive_words = ["love", "like", "great", "good", "amazing", "nice", "wow"]
+    negative_words = ["hate", "bad", "fuck", "shit", "worst", "angry"]
+
+    if any(word in comment for word in positive_words):
+        return 1
+    if any(word in comment for word in negative_words):
+        return 2
+    return 0
+
+
 def preprocess_comment(comment, pp):
-    """Clean & normalize text using params.yaml controls."""
+    """Apply NLP preprocessing steps."""
     try:
-        # lowercase
+        if pd.isna(comment):
+            return ""
+
+        # Remove URLs
+        comment = remove_url(comment)
+
+        # Lowercase
         if pp["lowercase"]:
-            comment = comment.lower().strip()
+            comment = comment.lower()
 
-        # remove punctuation
+        # Remove extra spaces
+        comment = comment.strip()
+
+        # Remove punctuation
         if pp["remove_punctuation"]:
-            comment = re.sub(r"[^A-Za-z0-9\s!?.,]", "", comment)
+            comment = re.sub(r"[^a-zA-Z0-9\s]", "", comment)
 
-        # stopwords
+        # Remove stopwords
         if pp["remove_stopwords"]:
             stop_words = set(stopwords.words("english")) - {
                 "not",
                 "but",
-                "however",
                 "no",
                 "yet",
+                "however",
             }
-            comment = " ".join([w for w in comment.split() if w not in stop_words])
+            comment = " ".join(w for w in comment.split() if w not in stop_words)
 
-        # lemmatization
+        # Lemmatization
         if pp["apply_lemmatization"]:
-            lemmatizer = WordNetLemmatizer()
-            comment = " ".join([lemmatizer.lemmatize(w) for w in comment.split()])
+            lemma = WordNetLemmatizer()
+            comment = " ".join(lemma.lemmatize(w) for w in comment.split())
 
         return comment
 
     except Exception as e:
         logger.error(f"Error preprocessing comment: {e}")
-        return comment
+        return ""
+
 
 def normalize_text(df, pp):
-    """Apply preprocessing to dataframe."""
+    """Clean dataframe completely."""
     try:
-        # Agar clean_comment column nahi hai, to Comment se banao
-        if "clean_comment" not in df.columns:
-            if "Comment" in df.columns:
-                df["clean_comment"] = df["Comment"].astype(str)
-            else:
-                raise KeyError("Neither 'clean_comment' nor 'Comment' column found")
+        # Keep only necessary columns
+        needed_cols = ["Comment"]
+        df = df[needed_cols]
 
-        df["clean_comment"] = df["clean_comment"].astype(str)
-        df["clean_comment"] = df["clean_comment"].apply(
-            lambda c: preprocess_comment(c, pp)
-        )
+        # Remove NAN & empty
+        df.dropna(subset=["Comment"], inplace=True)
 
-        logger.debug("Applied text normalization")
+        # Remove duplicates
+        df.drop_duplicates(subset=["Comment"], inplace=True)
+
+        # Clean Comment → clean_comment
+        df["clean_comment"] = df["Comment"].astype(str)
+        df["clean_comment"] = df["clean_comment"].apply(lambda x: preprocess_comment(x, pp))
+
+        # Remove empty cleaned rows
+        df = df[df["clean_comment"].str.strip() != ""]
+
+        # Create sentiment label
+        df["category"] = df["clean_comment"].apply(create_sentiment)
+
+        logger.debug("Text cleaning + sentiment labeling completed")
         return df
 
     except Exception as e:
@@ -106,36 +142,31 @@ def save_data(train_df, test_df):
         train_df.to_csv(os.path.join(output_dir, "train_processed.csv"), index=False)
         test_df.to_csv(os.path.join(output_dir, "test_processed.csv"), index=False)
 
-        logger.debug("Saved processed datasets into data/interim")
+        logger.debug("Saved cleaned datasets into data/interim")
     except Exception as e:
         logger.error(f"Saving error: {e}")
         raise
 
+
 def main():
     try:
-        logger.debug("=== Starting Preprocessing Stage ===")
-
-        # Load parameters
+        logger.debug("=== PREPROCESSING START ===")
         params = load_params()
         pp = params["data_preprocessing"]
 
-        # Load input train-test (from ingestion stage)
         train_df = pd.read_csv("data/processed/train.csv")
         test_df = pd.read_csv("data/processed/test.csv")
-        logger.debug("Loaded train/test datasets")
 
-        # Normalize text
-        train_processed = normalize_text(train_df, pp)
-        test_processed = normalize_text(test_df, pp)
+        train_clean = normalize_text(train_df, pp)
+        test_clean = normalize_text(test_df, pp)
 
-        # Save output
-        save_data(train_processed, test_processed)
-
-        logger.debug("=== Preprocessing Completed Successfully ===")
+        save_data(train_clean, test_clean)
+        logger.debug("=== PREPROCESSING SUCCESS ===")
 
     except Exception as e:
         logger.error(f"Preprocessing FAILED: {e}")
         print("Error:", e)
+
 
 if __name__ == "__main__":
     main()
