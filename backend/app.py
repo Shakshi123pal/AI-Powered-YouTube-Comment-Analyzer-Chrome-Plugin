@@ -3,6 +3,7 @@ import io
 import re
 import pickle
 import logging
+import requests
 import matplotlib
 matplotlib.use("Agg")
 
@@ -20,7 +21,7 @@ from nltk.stem import WordNetLemmatizer
 from wordcloud import WordCloud
 
 
-# NLTK SAFE SETUP (NO RUNTIME CRASH)
+# NLTK SAFE SETUP
 
 try:
     nltk.data.find("corpora/stopwords")
@@ -37,25 +38,32 @@ STOP_WORDS = set(stopwords.words("english")) - {
 }
 lemmatizer = WordNetLemmatizer()
 
-# FASTAPI APP
+# FASTAPI APP + CORS
 
 app = FastAPI(title="YouTube Comment Sentiment Backend")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],   # dev + interview
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-
-# LOGGING (Interview + Debug ready)
+# LOGGING
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# SAFE MODEL LOADING (MAIN FIX )
+
+# ENV VARIABLES
+
+YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
+if not YOUTUBE_API_KEY:
+    raise RuntimeError("YOUTUBE_API_KEY environment variable not set")
+
+
+# MODEL LOADING (SAFE PATH)
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -97,20 +105,81 @@ def preprocess(text: str) -> str:
 class PredictRequest(BaseModel):
     comments: list[str]
 
+class AnalyzeRequest(BaseModel):
+    video_id: str
+
 class TrendRequest(BaseModel):
     sentiment_data: list[dict]
 
 class WordCloudRequest(BaseModel):
     comments: list[str]
 
-# HEALTH CHECK (IMPORTANT FOR INTERVIEW)
+
+# HEALTH CHECK
 
 @app.get("/")
 def health():
     return {"status": "Backend running successfully 🚀"}
 
 
-# PREDICT ENDPOINT (CHROME EXTENSION USES THIS)
+# ANALYZE VIDEO (USED BY CHROME EXTENSION)
+
+@app.post("/analyze")
+def analyze_video(req: AnalyzeRequest):
+    video_id = req.video_id
+    url = "https://www.googleapis.com/youtube/v3/commentThreads"
+
+    params = {
+        "part": "snippet",
+        "videoId": video_id,
+        "maxResults": 100,
+        "key": YOUTUBE_API_KEY
+    }
+
+    comments = []
+    page_token = None
+
+    try:
+        while len(comments) < 100:
+            if page_token:
+                params["pageToken"] = page_token
+
+            res = requests.get(url, params=params)
+            data = res.json()
+
+            for item in data.get("items", []):
+                comments.append(
+                    item["snippet"]["topLevelComment"]["snippet"]["textOriginal"]
+                )
+
+            page_token = data.get("nextPageToken")
+            if not page_token:
+                break
+
+        if not comments:
+            raise HTTPException(status_code=404, detail="No comments found")
+
+        processed = [preprocess(c) for c in comments]
+        X = vectorizer.transform(processed)
+        preds = model.predict(X)
+
+        summary = {
+            "positive": int((preds == 1).sum()),
+            "neutral": int((preds == 0).sum()),
+            "negative": int((preds == 2).sum()),
+        }
+
+        return {
+            "video_id": video_id,
+            "total_comments": len(comments),
+            "summary": summary
+        }
+
+    except Exception as e:
+        logger.error(f"Analyze failed: {e}")
+        raise HTTPException(status_code=500, detail="Video analysis failed")
+
+# PREDICT (OPTIONAL / TESTING)
 
 @app.post("/predict")
 def predict(req: PredictRequest):
@@ -131,7 +200,6 @@ def predict(req: PredictRequest):
         logger.error(f"Prediction failed: {e}")
         raise HTTPException(status_code=500, detail="Sentiment prediction failed")
 
-
 # PIE CHART
 
 @app.post("/generate_chart")
@@ -148,13 +216,7 @@ def generate_chart(data: dict):
     colors = ["#36A2EB", "#C9CBCF", "#FF6384"]
 
     plt.figure(figsize=(6, 6))
-    plt.pie(
-        sizes,
-        labels=labels,
-        colors=colors,
-        autopct="%1.1f%%",
-        startangle=140
-    )
+    plt.pie(sizes, labels=labels, colors=colors, autopct="%1.1f%%")
     plt.axis("equal")
 
     buf = io.BytesIO()
@@ -184,7 +246,6 @@ def generate_wordcloud(req: WordCloudRequest):
 
     return StreamingResponse(buf, media_type="image/png")
 
-
 # TREND GRAPH
 
 @app.post("/generate_trend_graph")
@@ -192,7 +253,6 @@ def generate_trend_graph(req: TrendRequest):
     df = pd.DataFrame(req.sentiment_data)
     df["timestamp"] = pd.to_datetime(df["timestamp"])
     df.set_index("timestamp", inplace=True)
-
     df["sentiment"] = df["sentiment"].astype(int)
 
     monthly = df.resample("M")["sentiment"].value_counts().unstack(fill_value=0)
@@ -209,8 +269,6 @@ def generate_trend_graph(req: TrendRequest):
     plt.plot(monthly_pct.index, monthly_pct[2], label="Negative", color="red")
 
     plt.legend()
-    plt.title("Monthly Sentiment Trend (%)")
-    plt.xticks(rotation=45)
     plt.grid(True)
 
     buf = io.BytesIO()
