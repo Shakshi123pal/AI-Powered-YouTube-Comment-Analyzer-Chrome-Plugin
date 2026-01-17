@@ -91,5 +91,7 @@ target/
 /tfidf_vectorizer.pkl
 /reports
 
-# venv
-myvenv
+# Virtual Environment
+myvenv/
+.venv/
+env/ 
