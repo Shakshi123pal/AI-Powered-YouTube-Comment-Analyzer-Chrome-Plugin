@@ -90,3 +90,8 @@ target/
 /svm_model.pkl
 /tfidf_vectorizer.pkl
 /reports
+
+# virtual environments
+myvenv/
+venv/
+env/    
