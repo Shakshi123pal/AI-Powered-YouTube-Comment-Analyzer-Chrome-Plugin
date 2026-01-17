@@ -1,0 +1,22 @@
+artifact_path: file:///D:/Capstone_Project/AI-Powered-YouTube-Comment-Analyzer-Chrome-Plugin/mlruns/0/models/m-3040a7b7b8f142d89bb8d8eb312d99bc/artifacts
+flavors:
+  python_function:
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.sklearn
+    model_path: model.pkl
+    predict_fn: predict
+    python_version: 3.10.11
+  sklearn:
+    code: null
+    pickled_model: model.pkl
+    serialization_format: cloudpickle
+    sklearn_version: 1.7.2
+mlflow_version: 3.8.1
+model_id: m-3040a7b7b8f142d89bb8d8eb312d99bc
+model_size_bytes: 1391173
+model_uuid: m-3040a7b7b8f142d89bb8d8eb312d99bc
+prompts: null
+run_id: 528ec6e2e645414eb6fa212d71246e20
+utc_time_created: '2026-01-17 18:09:08.801353'

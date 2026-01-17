@@ -1,10 +1,25 @@
 import os
 import pickle
 import yaml
+import mlflow
+import mlflow.sklearn
+import json
+
 import logging
 import pandas as pd
 from sklearn.svm import SVC
 from sklearn.feature_extraction.text import TfidfVectorizer
+
+DAGSHUB_REPO = os.getenv("DAGSHUB_REPO")
+if not DAGSHUB_REPO:
+    raise EnvironmentError("DAGSHUB_REPO not set")
+
+mlflow.set_tracking_uri(
+    f"https://dagshub.com/{DAGSHUB_REPO}.mlflow"
+)
+
+mlflow.set_experiment("youtube_sentiment_training")
+
 
 # logging
 logger = logging.getLogger("model_building")
@@ -132,9 +147,37 @@ def main():
             ngram_range=tuple(params["model_building"]["ngram_range"])
         )
 
-        model = train_svm(X, y, svm_params)
+        with mlflow.start_run() as run:
 
-        save_model(model)
+            model = train_svm(X, y, svm_params)
+
+            # log model to MLflow
+            mlflow.sklearn.log_model(
+                sk_model=model,
+                artifact_path="model",
+                registered_model_name="yt_chrome_plugin_model"
+            )
+
+
+
+
+            # OPTIONAL but good (params log)
+            mlflow.log_params(svm_params)
+            mlflow.log_param("max_features", params["model_building"]["max_features"])
+            mlflow.log_param("ngram_range", params["model_building"]["ngram_range"])
+
+            save_model(model)
+
+            #  THIS IS THE MOST IMPORTANT PART
+            experiment_info = {
+                "run_id": run.info.run_id,
+                "model_path": "model"
+            }
+
+            root = get_root()
+            with open(os.path.join(root, "experiment_info.json"), "w") as f:
+                json.dump(experiment_info, f)
+
 
         logger.debug("=== MODEL BUILDING SUCCESS ===")
 

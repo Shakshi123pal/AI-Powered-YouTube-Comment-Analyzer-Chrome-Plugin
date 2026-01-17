@@ -10,20 +10,20 @@ import matplotlib.dates as mdates
 import pandas as pd
 import numpy as np
 
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 from wordcloud import WordCloud
 
-# -----------------------------
-# FASTAPI APP + CORS ENABLED
-# -----------------------------
+
+# FASTAPI APP + CORS
 
 app = FastAPI()
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -34,9 +34,7 @@ app.add_middleware(
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 
-# -----------------------------
-# LOAD MODEL + TFIDF FROM DAGSHUB (LOCAL CACHE BY DVC)
-# -----------------------------
+# LOAD MODEL + TFIDF
 
 with open(os.path.join(ROOT, "../svm_model.pkl"), "rb") as f:
     model = pickle.load(f)
@@ -44,32 +42,27 @@ with open(os.path.join(ROOT, "../svm_model.pkl"), "rb") as f:
 with open(os.path.join(ROOT, "../tfidf_vectorizer.pkl"), "rb") as f:
     vectorizer = pickle.load(f)
 
-# -----------------------------
-# PREPROCESSING 
-# -----------------------------
+
+
+# PREPROCESSING FUNCTION
 
 def preprocess_comment(comment):
     try:
         comment = comment.lower().strip()
-        comment = re.sub(r"\n", " ", comment)
         comment = re.sub(r"[^A-Za-z0-9\s!?.,]", "", comment)
 
-        stop_words = set(stopwords.words("english")) - {
-            "not", "but", "however", "no", "yet"
-        }
-        comment = " ".join([w for w in comment.split() if w not in stop_words])
+        stop_words = set(stopwords.words("english")) - {"not", "no", "but", "however"}
+        words = [w for w in comment.split() if w not in stop_words]
 
         lemmatizer = WordNetLemmatizer()
-        comment = " ".join([lemmatizer.lemmatize(w) for w in comment.split()])
+        words = [lemmatizer.lemmatize(w) for w in words]
 
-        return comment
+        return " ".join(words)
     except:
         return comment
 
 
-# -----------------------------
-# PYDANTIC MODELS
-# -----------------------------
+
 
 class PredictRequest(BaseModel):
     comments: list
@@ -87,17 +80,14 @@ class WordCloudRequest(BaseModel):
     comments: list
 
 
-# -----------------------------
-# HOME ROUTE
-# -----------------------------
+# HOME
+
 @app.get("/")
 def home():
     return {"message": "FastAPI Backend Running Successfully 🚀"}
 
-
-# -----------------------------
 # /PREDICT
-# -----------------------------
+
 @app.post("/predict")
 def predict(data: PredictRequest):
     comments = data.comments
@@ -109,22 +99,15 @@ def predict(data: PredictRequest):
     transformed = vectorizer.transform(processed)
     preds = model.predict(transformed).tolist()
 
-    response = [
-        {"comment": c, "sentiment": int(s)}
-        for c, s in zip(comments, preds)
-    ]
-    return response
+    return [{"comment": c, "sentiment": int(s)} for c, s in zip(comments, preds)]
 
 
-# -----------------------------
+
 # /PREDICT_WITH_TIMESTAMPS
-# -----------------------------
+
 @app.post("/predict_with_timestamps")
 def predict_with_timestamps(data: PredictTimestampRequest):
     items = data.comments
-
-    if not items:
-        raise HTTPException(status_code=400, detail="No comments provided")
 
     comments = [item["text"] for item in items]
     timestamps = [item["timestamp"] for item in items]
@@ -133,20 +116,15 @@ def predict_with_timestamps(data: PredictTimestampRequest):
     transformed = vectorizer.transform(processed)
     preds = model.predict(transformed).tolist()
 
-    response = [
-        {
-            "comment": c,
-            "sentiment": int(s),
-            "timestamp": t
-        }
+    return [
+        {"comment": c, "sentiment": int(s), "timestamp": t}
         for c, s, t in zip(comments, preds, timestamps)
     ]
-    return response
 
 
-# -----------------------------
-# /GENERATE_CHART
-# -----------------------------
+
+# /GENERATE_CHART (Pie Chart FIXED)
+
 @app.post("/generate_chart")
 def generate_chart(data: dict):
     sentiment = data.get("sentiment_counts")
@@ -156,10 +134,22 @@ def generate_chart(data: dict):
 
     labels = ["Positive", "Neutral", "Negative"]
     sizes = [
-        sentiment.get("1", 0),
-        sentiment.get("0", 0),
-        sentiment.get("2", 0)
+        sentiment.get("1", 0),  # Positive
+        sentiment.get("0", 0),  # Neutral
+        sentiment.get("2", 0)   # Negative
     ]
+
+    # 🚨 FIX — Avoid crash when all values = 0
+    if sum(sizes) == 0:
+        plt.figure(figsize=(6, 6))
+        plt.text(0.5, 0.5, "No sentiment data", fontsize=20, ha="center", color="white")
+        plt.axis("off")
+
+        img_bytes = io.BytesIO()
+        plt.savefig(img_bytes, format="PNG", transparent=True)
+        img_bytes.seek(0)
+        plt.close()
+        return StreamingResponse(img_bytes, media_type="image/png")
 
     colors = ["#36A2EB", "#C9CBCF", "#FF6384"]
 
@@ -170,7 +160,7 @@ def generate_chart(data: dict):
         colors=colors,
         autopct="%1.1f%%",
         startangle=140,
-        textprops={"color": "white"}
+        textprops={"color": "white"},
     )
     plt.axis("equal")
 
@@ -182,14 +172,12 @@ def generate_chart(data: dict):
     return StreamingResponse(img_bytes, media_type="image/png")
 
 
-# -----------------------------
+
 # /GENERATE_WORDCLOUD
-# -----------------------------
+
 @app.post("/generate_wordcloud")
 def generate_wordcloud(data: WordCloudRequest):
-    comments = data.comments
-
-    text = " ".join([preprocess_comment(c) for c in comments])
+    text = " ".join([preprocess_comment(c) for c in data.comments])
 
     wordcloud = WordCloud(
         width=800,
@@ -207,9 +195,8 @@ def generate_wordcloud(data: WordCloudRequest):
     return StreamingResponse(img_bytes, media_type="image/png")
 
 
-# -----------------------------
-# /GENERATE_TREND_GRAPH
-# -----------------------------
+# /GENERATE_TREND_GRAPH (Fixed)
+
 @app.post("/generate_trend_graph")
 def generate_trend_graph(data: TrendRequest):
     df = pd.DataFrame(data.sentiment_data)
@@ -239,7 +226,7 @@ def generate_trend_graph(data: TrendRequest):
             marker="o",
             linestyle="-",
             color=colors[s],
-            label=labels[s]
+            label=labels[s],
         )
 
     plt.title("Monthly Sentiment Trend (%)")

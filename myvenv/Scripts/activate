@@ -38,7 +38,7 @@ deactivate () {
 # unset irrelevant variables
 deactivate nondestructive
 
-VIRTUAL_ENV="F:\Capstone_Project\AI-Powered-YouTube-Comment-Analyzer-Chrome-Plugin\myvenv"
+VIRTUAL_ENV="D:\Capstone_Project\AI-Powered-YouTube-Comment-Analyzer-Chrome-Plugin\myvenv"
 export VIRTUAL_ENV
 
 _OLD_VIRTUAL_PATH="$PATH"
