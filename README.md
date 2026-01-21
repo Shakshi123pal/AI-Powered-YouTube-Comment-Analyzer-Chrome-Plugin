@@ -51,7 +51,16 @@ Project Organization
     │
     └── tox.ini            <- tox file with settings for running tox; see tox.readthedocs.io
 
+## 🧪 Demo
 
---------
+Below are screenshots demonstrating the working of the **AI-Powered YouTube Comment Sentiment Analyzer**:
+
+### 🔹 Chrome Extension – Live Sentiment Analysis
+The Chrome extension analyzes comments of the currently opened YouTube video and displays sentiment distribution (Positive, Neutral, Negative) in real time.
+    
+    <img width="1696" height="914" alt="image" src="https://github.com/user-attachments/assets/b1e752e7-58c0-490a-87fc-087d4a2d46d5" />
+
+
+
 
 <p><small>Project based on the <a target="_blank" href="https://drivendata.github.io/cookiecutter-data-science/">cookiecutter data science project template</a>. #cookiecutterdatascience</small></p>
